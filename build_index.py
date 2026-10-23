@@ -33,10 +33,17 @@ for cat in sorted({p.parent.name for p in root.glob("posts/*/*.html") if not p.p
         rows.append((f.name[:10], badge, html.unescape(m.group(1)).strip(), f.relative_to(root).as_posix()))
     groups[cat] = rows
 
+# 발행 순서: 블로그는 최신 글이 위에 보이므로, 카테고리마다 아래 글(낮은 순위)부터 올리고 TOP10을 마지막에 올린다
+seq, n = {}, 0
+for r in groups.values():
+    for x in reversed(r):
+        n += 1
+        seq[x[3]] = n
+
 def li(d, badge, t, href):
     b = f'<b class="bd">{badge}</b> ' if badge else ""
     return (f'<li data-id="{html.escape(href)}"><label><input type="checkbox"> 발행 완료</label> '
-            f'<small>{d}</small><br>{b}<a href="{html.escape(href)}" target="_blank">{html.escape(t)}</a></li>')
+            f'<b class="sq">발행 {seq[href]}번</b> <small>{d}</small><br>{b}<a href="{html.escape(href)}" target="_blank">{html.escape(t)}</a></li>')
 
 items = "\n".join(f"<h2>{c} <small>({len(r)}개)</small></h2>\n<ul>\n" + "\n".join(li(*x) for x in r) + "\n</ul>" for c, r in groups.items())
 rows = [x for r in groups.values() for x in r]
@@ -45,7 +52,7 @@ rows = [x for r in groups.values() for x in r]
 <title>발행 대기 목록</title>
 <style>body{{max-width:680px;margin:24px auto;padding:0 16px;font:16px/1.7 -apple-system,'Apple SD Gothic Neo',sans-serif}}
 li{{margin:14px 0;list-style:none;border-bottom:1px solid #eee;padding-bottom:10px}}li.done{{opacity:.4}}
-.bd{{background:#222;color:#fff;border-radius:6px;padding:1px 8px;font-size:13px}}h2{{margin-top:36px;border-bottom:3px solid #222;padding-bottom:6px}}.go{{display:inline-block;background:#03c75a;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;font-weight:bold}}</style></head>
+.sq{{color:#03c75a;margin-left:8px}}.bd{{background:#222;color:#fff;border-radius:6px;padding:1px 8px;font-size:13px}}h2{{margin-top:36px;border-bottom:3px solid #222;padding-bottom:6px}}.go{{display:inline-block;background:#03c75a;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none;font-weight:bold}}</style></head>
 <body><h1>발행 대기 목록</h1>
 <p><a class="go" href="{WRITE}" target="_blank">네이버 글쓰기 열기</a></p>
 <p>순서: ① 글 제목을 눌러 열기 → ② [제목 복사] [본문 복사] → ③ 글쓰기 창에 붙여넣고 발행 → ④ 아래 "발행 완료" 체크</p>
