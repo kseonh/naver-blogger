@@ -1,4 +1,4 @@
-"""글마다 대표 이미지 '배경'을 Gemini로 만든다. 제목 글자는 index.html 에서 얹는다(AI가 한글을 자주 깨뜨려서).
+"""글마다 대표 이미지 '배경'을 Gemini로 만든다.  공식 이미지(인터넷)가 없을 때만. 제목 글자는 index.html 에서 얹는다(AI가 한글을 자주 깨뜨려서).
 실행: python3 gen_image.py [--force]   키: .env 의 GEMINI_API_KEY (모델은 GEMINI_IMAGE_MODEL, 기본 gemini-2.5-flash-image)
 결과: posts/images/bg/<글파일명>.jpg (900px). 이미 있으면 건너뛴다."""
 import base64, html, json, pathlib, re, subprocess, sys, tempfile, time
@@ -32,27 +32,30 @@ def gemini(prompt):
 
 
 OFF = root / "posts/images/official"
+def curl(*a): return subprocess.run(["curl", "-sL", "-m", "20", "-A", "Mozilla/5.0", *a], capture_output=True, text=True).stdout
+def og(url):
+    m = re.search(r'og:image["\']?\s+content="([^"]+)"|content="([^"]+)"\s+property="og:image"', curl(url))
+    u = html.unescape(next((g for g in m.groups() if g), "")) if m else ""
+    return u if u.startswith("http") and not re.search(r"logo|default|favicon", u, re.I) else None
 def official():
-    # NOL 상품이면 판매처의 공식 포스터(og:image)를 받는다(출연자 얼굴이 나오는 대표 이미지). 없으면 AI 배경을 쓴다
+    # 인터넷에서 받은 공식 포스터·기사 대표 이미지를 우선한다(Gemini는 돈이 들어서 이게 없을 때만 쓴다)
     OFF.mkdir(parents=True, exist_ok=True)
     for f in sorted(root.glob("posts/*/20*.html")):
         dst = OFF / (f.stem + ".jpg")
         txt = f.read_text(encoding="utf-8")
+        if f.parent.name == "_archive" or dst.exists(): continue
+        roundup = re.search(r"종합|캘린더|TOP10|오픈소식", f.stem)  # 여러 행사를 묶은 글은 한 행사의 이미지를 쓰면 틀린다
         m = re.search(r"products/(\d{8})", txt); o = re.search(r'<meta name="official-image" content="(.*?)">', txt)
         c = set(re.findall(r"csoonId=(\d+)", txt))  # 멜론티켓 오픈소식 글. 링크가 둘 이상인 종합 글은 어느 포스터인지 알 수 없어 제외
-        if f.parent.name == "_archive" or dst.exists() or not (m or o or len(c) == 1): continue
-        if o: u = o  # 글에 직접 적어 둔 공식 이미지 주소(NOL이 아닌 글)
-        elif not m:
-            page = subprocess.run(["curl", "-s", "-m", "20", "-A", "Mozilla/5.0", f"https://ticket.melon.com/csoon/detail.htm?csoonId={c.pop()}"], capture_output=True, text=True).stdout
-            u = re.search(r'og:image"\s*content="([^"]*)', page)
-        else:
-            page = subprocess.run(["curl", "-s", "-m", "20", "-A", "Mozilla/5.0", f"https://nol.yanolja.com/ticket/products/{m.group(1)}"], capture_output=True, text=True).stdout
-            u = re.search(r'og:image" content="([^"]*)', page)
+        links = [h for h in dict.fromkeys(re.findall(r'href="(https?://[^"#]+)"', txt)) if h.count("/") > 3 and not re.search(r"instagram\.com|articleView|/article/|/news/|ticketlink\.co\.kr|nol\.yanolja\.com/ticket$", h)]  # 티켓링크는 로고만 나온다
+        cands = ([o.group(1)] if o else []) + ([f"https://nol.yanolja.com/ticket/products/{m.group(1)}"] if m else []) \
+            + ([f"https://ticket.melon.com/csoon/detail.htm?csoonId={next(iter(c))}"] if len(c) == 1 else []) + ([] if roundup else links[:4])  # 마지막은 판매처·기사 링크의 대표 이미지
+        u = next((x for x in (c_ if c_ == (o and o.group(1)) else og(c_) for c_ in cands) if x), None)
         if not u: continue
         tmp = tempfile.mktemp()
-        subprocess.run(["curl", "-s", "-m", "30", "-A", "Mozilla/5.0", "-e", "https://nol.yanolja.com/", "-o", tmp, u.group(1)])
+        subprocess.run(["curl", "-s", "-m", "30", "-A", "Mozilla/5.0", "-e", "https://nol.yanolja.com/", "-o", tmp, u])
         subprocess.run(["sips", "-s", "format", "jpeg", "-s", "formatOptions", "80", "-Z", "900", tmp, "--out", str(dst)], capture_output=True)
-        print("공식 포스터:", f.stem, "OK" if dst.exists() else "실패")
+        print("공식 이미지:", f.stem, "OK" if dst.exists() else "실패")
 def main(force=False):
     official()
     if "GEMINI_API_KEY" not in _env():
@@ -61,7 +64,7 @@ def main(force=False):
     OUT.mkdir(parents=True, exist_ok=True)
     made = failed = 0
     for f in sorted(root.glob("posts/*/20*.html")):
-        if f.parent.name == "_archive" or (OUT / (f.stem + ".jpg")).exists() and not force:
+        if f.parent.name == "_archive" or (OUT / (f.stem + ".jpg")).exists() and not force or (OFF / (f.stem + ".jpg")).exists():  # 공식 이미지가 있으면 Gemini 를 쓰지 않는다
             continue
         txt = f.read_text(encoding="utf-8")
         cat = re.search(r'<meta name="naver-category" content="(.*?)">', txt).group(1).split(">")[0].strip()
