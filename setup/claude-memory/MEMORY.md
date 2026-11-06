@@ -1,0 +1,5 @@
+- [네이버 블로그 ticket_info 프로젝트](project-naver-blog-ticket-info.md) — 저장소 위치, 실제 카테고리, 폴더·글 형식
+- [블로그 글 작성 규칙](feedback-blog-content-rules.md) — 지어낸 경험담 금지, 확인된 정보만, 네이버 접근 불가
+- [티켓 정보 수집처 시험 결과](reference-ticket-data-sources.md) — 읽히는 사이트와 안 읽히는 사이트
+- [이미지 정책](feedback-image-policy.md) — 공식 이미지 우선, Gemini는 없을 때만
+- [이웃 추가 자동화 보류](project-neighbor-automation-onhold.md) — 네이버 차단, 무인 자동 비권장
