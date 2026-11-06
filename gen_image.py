@@ -39,8 +39,12 @@ def official():
         dst = OFF / (f.stem + ".jpg")
         txt = f.read_text(encoding="utf-8")
         m = re.search(r"products/(\d{8})", txt); o = re.search(r'<meta name="official-image" content="(.*?)">', txt)
-        if f.parent.name == "_archive" or dst.exists() or not (m or o): continue
+        c = set(re.findall(r"csoonId=(\d+)", txt))  # 멜론티켓 오픈소식 글. 링크가 둘 이상인 종합 글은 어느 포스터인지 알 수 없어 제외
+        if f.parent.name == "_archive" or dst.exists() or not (m or o or len(c) == 1): continue
         if o: u = o  # 글에 직접 적어 둔 공식 이미지 주소(NOL이 아닌 글)
+        elif not m:
+            page = subprocess.run(["curl", "-s", "-m", "20", "-A", "Mozilla/5.0", f"https://ticket.melon.com/csoon/detail.htm?csoonId={c.pop()}"], capture_output=True, text=True).stdout
+            u = re.search(r'og:image"\s*content="([^"]*)', page)
         else:
             page = subprocess.run(["curl", "-s", "-m", "20", "-A", "Mozilla/5.0", f"https://nol.yanolja.com/ticket/products/{m.group(1)}"], capture_output=True, text=True).stdout
             u = re.search(r'og:image" content="([^"]*)', page)
